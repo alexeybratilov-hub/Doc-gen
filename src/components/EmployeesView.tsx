@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CompanyItem, Employee, JobDirectoryItem, SoutClassType } from '../lib/types';
+import { CompanyItem, Employee, JobDirectoryItem } from '../lib/types';
 import { BatchPasteModal } from './BatchPasteModal';
 import { parseDateRu } from '../lib/holidays';
 import { getEmployeeJobExperienceYears } from '../lib/docxEngine';
@@ -112,9 +112,10 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
       } else if (sortField === 'gender') {
         compareVal = (a.gender || '').localeCompare(b.gender || '');
       } else if (sortField === 'soutClass') {
-        const classA = a.soutClass || jobDirectory.find((j) => j.post === a.post)?.soutClass || '2';
-        const classB = b.soutClass || jobDirectory.find((j) => j.post === b.post)?.soutClass || '2';
-        compareVal = classA.localeCompare(classB);
+        // Класс СОУТ — только из контингента (jobDirectory), переопределение в сотруднике не используется
+        const classA = jobDirectory.find((j) => j.post === a.post)?.soutClass || '2';
+        const classB = jobDirectory.find((j) => j.post === b.post)?.soutClass || '2';
+        compareVal = String(classA).localeCompare(String(classB));
       } else if (sortField === 'hireDate') {
         const dA = parseDateRu(a.hireDate);
         const dB = parseDateRu(b.hireDate);
@@ -176,16 +177,15 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
       needGeneration: item.needGeneration !== false,
       snils: item.snils || '',
       phone: item.phone || '',
-      gender: item.gender || 'муж',
+      gender: (item.gender as string) === 'ж' || (item.gender as string) === 'жен' ? 'ж' : 'м',
       experience: item.experience || '1',
-      factors29n: item.factors29n || '',
-      periodicity: item.periodicity || '1 раз в год',
+      // @deprecated legacy-поля factors29n/periodicity/pso342n/soutClass не заполняем —
+      // источник истины: JobDirectoryItem.factorsConfig / psychiatryPoints / soutClass (контингент)
       disability: item.disability || 'нет',
       under18: item.under18 || 'нет',
       plannedMedicalDate: item.plannedMedicalDate || '',
       actualMedicalDate: item.actualMedicalDate || '',
-      pso342n: item.pso342n || 'нет',
-      soutClass: item.soutClass || '2',
+      companyId: activeCompanyId,
     }));
 
     if (replaceAll) {
@@ -214,14 +214,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
       phone: '',
       gender: 'м',
       experience: '1',
-      factors29n: defaultJob ? defaultJob.factors : '',
-      periodicity: '1 раз в год',
+      // Факторы/психиатрия/класс СОУТ НЕ копируются в сотрудника — читаются из контингента (jobDirectory)
       disability: 'нет',
       under18: 'нет',
       plannedMedicalDate: '',
       actualMedicalDate: '',
-      pso342n: defaultJob ? defaultJob.psychiatry : 'нет',
-      soutClass: defaultJob ? defaultJob.soutClass : '2',
       companyId: activeCompanyId,
     };
     onUpdateEmployees([...employees, newEmp]);
@@ -409,11 +406,12 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 const jobMatch = jobDirectory.find(
                   (j) => j.post && j.post.trim().toLowerCase() === (emp.post || '').trim().toLowerCase()
                 );
-                const effectiveClass = emp.soutClass || jobMatch?.soutClass || '2';
+                // Класс СОУТ — read-only, только из контингента (jobDirectory)
+                const effectiveClass = String(jobMatch?.soutClass || '2').trim();
                 const isHarmful = ['3.1', '3.2', '3.3', '3.4', '4'].includes(String(effectiveClass));
                 const years = getEmployeeJobExperienceYears(emp);
 
-                const isFemale = emp.gender === 'ж' || emp.gender === 'жен';
+                const isFemale = emp.gender === 'ж';
 
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50 transition">
@@ -430,7 +428,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                             : 'bg-blue-100 text-blue-700'
                         }`}
                       >
-                        {isFemale ? 'ж' : 'м'}
+                        {isFemale ? 'Женский' : 'Мужской'}
                       </span>
                     </td>
 
@@ -558,9 +556,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Пол:</label>
                   <select
-                    value={editingEmployee.gender === 'жен' || editingEmployee.gender === 'ж' ? 'ж' : 'м'}
+                    value={editingEmployee.gender === 'ж' ? 'ж' : 'м'}
                     onChange={(e) =>
-                      setEditingEmployee({ ...editingEmployee, gender: e.target.value })
+                      setEditingEmployee({ ...editingEmployee, gender: e.target.value as 'м' | 'ж' })
                     }
                     className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                   >
@@ -602,7 +600,6 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                         ...editingEmployee,
                         post: newPost,
                         dept: matched?.dept || editingEmployee.dept,
-                        soutClass: matched?.soutClass || editingEmployee.soutClass || '2',
                       });
                     }}
                     className="w-full p-2 border border-slate-300 rounded-lg text-xs"
@@ -657,28 +654,29 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                 <div>
                   <label className="block font-bold text-slate-800 mb-1">
-                    Индивидуальный класс условий труда (СОУТ):
+                    Класс условий труда (СОУТ):
                   </label>
-                  <select
-                    value={editingEmployee.soutClass || '2'}
-                    onChange={(e) =>
-                      setEditingEmployee({
-                        ...editingEmployee,
-                        soutClass: e.target.value as SoutClassType,
-                      })
-                    }
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                  >
-                    <option value="1">Класс 1 (Оптимальный)</option>
-                    <option value="2">Класс 2 (Допустимый)</option>
-                    <option value="3.1">Класс 3.1 (Вредный 1 ст.)</option>
-                    <option value="3.2">Класс 3.2 (Вредный 2 ст.)</option>
-                    <option value="3.3">Класс 3.3 (Вредный 3 ст.)</option>
-                    <option value="3.4">Класс 3.4 (Вредный 4 ст.)</option>
-                    <option value="4">Класс 4 (Опасный)</option>
-                  </select>
+                  {(() => {
+                    const jobForClass = jobDirectory.find(
+                      (j) => j.post.trim().toLowerCase() === (editingEmployee.post || '').trim().toLowerCase()
+                    );
+                    const cls = String(jobForClass?.soutClass || '2').trim();
+                    const harmful = ['3.1', '3.2', '3.3', '3.4', '4'].includes(cls);
+                    return (
+                      <div
+                        className={`w-full p-2 rounded-lg text-xs font-bold border ${
+                          harmful
+                            ? 'bg-rose-100 text-rose-800 border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        Класс {cls} {harmful ? '(вредные условия)' : '(допустимые/оптимальные)'}
+                      </div>
+                    );
+                  })()}
                   <p className="text-[10px] text-slate-500 mt-1">
-                    По умолчанию класс берётся из карты СОУТ должности, но может быть переопределен индивидуально.
+                    Read-only. Класс берётся из контингента (карта СОУТ должности) и не может быть
+                    переопределён в карточке сотрудника.
                   </p>
                 </div>
 

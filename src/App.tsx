@@ -30,6 +30,7 @@ import { CompanySettingsView } from './components/CompanySettingsView';
 import { HistoryAndBackupView } from './components/HistoryAndBackupView';
 import { GenerationResultModal } from './components/GenerationResultModal';
 import { CompanyModal } from './components/CompanyModal';
+import { CompanySetupWizard, CompanySetupResult } from './components/CompanySetupWizard';
 import { CompanySelector } from './components/CompanySelector';
 import { createExportWorkbook } from './lib/excelParser';
 import {
@@ -76,6 +77,10 @@ export default function App() {
 
   // Модальное окно создания / редактирования юрлица
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  // D3: мастер пошагового создания компании (штатное расписание → люди → СОУТ)
+  const [isCompanySetupWizardOpen, setIsCompanySetupWizardOpen] = useState(false);
+  const [pendingNewCompanyId, setPendingNewCompanyId] = useState('');
+  const [pendingNewCompanyName, setPendingNewCompanyName] = useState('');
   const [companyToEdit, setCompanyToEdit] = useState<CompanyItem | null>(null);
 
   // Поддержка PWA / Desktop install
@@ -298,6 +303,8 @@ export default function App() {
   };
 
   const handleSaveCompany = (comp: CompanyItem, copyContingent: boolean) => {
+    const isNewCompany = !companies.some((c) => c.id === comp.id);
+
     setCompanies((prev) => {
       const idx = prev.findIndex((c) => c.id === comp.id);
       if (idx >= 0) {
@@ -310,14 +317,55 @@ export default function App() {
     setActiveCompanyId(comp.id);
     setCompanySettings(comp.settings);
 
+    // D3: новая компания создаётся через пошаговый мастер (штатное расписание → люди → СОУТ).
+    // Модальное окно компании только регистрирует юрлицо и открывает мастер.
+    if (isNewCompany) {
+      setPendingNewCompanyId(comp.id);
+      setPendingNewCompanyName(comp.name);
+      setIsCompanySetupWizardOpen(true);
+      return;
+    }
+
+    // Legacy-поведение для старых данных: копирование контингента с галочкой
+    // (глубокое клонирование factorsConfig / psychiatryPoints).
     if (copyContingent) {
       const clonedJobs: JobDirectoryItem[] = jobDirectory.map((j) => ({
-        ...j,
+        ...structuredClone(j),
         id: `job-${comp.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         companyId: comp.id,
       }));
       setJobDirectory((prev) => [...prev, ...clonedJobs]);
     }
+  };
+
+  // D3: завершение мастера создания компании — мат. файл (штатка) + поимённый список + карты СОУТ
+  const handleCompanySetupComplete = (result: CompanySetupResult) => {
+    const compId = pendingNewCompanyId;
+    if (!compId) return;
+
+    setJobDirectory((prev) => [...prev, ...result.jobs]);
+    setEmployees((prev) => [...prev, ...result.employees]);
+    setSoutWorkplaces((prev) => [...prev, ...result.soutCards]);
+
+    // Автоматическая привязка карт СОУТ к должностям (по post)
+    setJobDirectory((prev) =>
+      prev.map((j) => {
+        if (j.companyId !== compId) return j;
+        const card = result.soutCards.find((s) => s.post === j.post);
+        return card ? { ...j, sout: card.cardDocNumber, soutClass: card.soutClass } : j;
+      })
+    );
+
+    setIsCompanySetupWizardOpen(false);
+    setPendingNewCompanyId('');
+    setPendingNewCompanyName('');
+  };
+
+  const handleCompanySetupCancel = () => {
+    // Отмена мастера: компанию оставляем (юрлицо зарегистрировано), данные — пустые.
+    setIsCompanySetupWizardOpen(false);
+    setPendingNewCompanyId('');
+    setPendingNewCompanyName('');
   };
 
   const handleDeleteCompany = (compToDeleteId: string) => {
@@ -682,6 +730,7 @@ export default function App() {
             workplaces={soutWorkplaces}
             onUpdateWorkplaces={setSoutWorkplaces}
             departments={sharedDepartments}
+            activeCompanyId={activeCompanyId}
           />
         )}
 
@@ -690,6 +739,7 @@ export default function App() {
             employees={employees}
             jobDirectory={jobDirectory}
             companySettings={companySettings}
+            activeCompanyId={activeCompanyId}
             onImportSuccess={(newEmp, newJobs, newSettings) => {
               setEmployees(newEmp);
               setJobDirectory(newJobs);
@@ -767,6 +817,15 @@ export default function App() {
         onClose={() => setIsCompanyModalOpen(false)}
         onSave={handleSaveCompany}
         companyToEdit={companyToEdit}
+      />
+
+      {/* D3: пошаговый мастер наполнения новой компании (материнский файл — штатное расписание) */}
+      <CompanySetupWizard
+        isOpen={isCompanySetupWizardOpen}
+        companyName={pendingNewCompanyName}
+        companyId={pendingNewCompanyId}
+        onCancel={handleCompanySetupCancel}
+        onComplete={handleCompanySetupComplete}
       />
     </div>
   );

@@ -26,19 +26,24 @@ export interface Employee {
   needGeneration?: boolean;
   snils: string;
   phone: string;
-  gender: 'м' | 'ж' | 'муж' | 'жен' | string;
+  gender: 'м' | 'ж'; // Строго 'м' | 'ж'. В UI отображается как «Мужской/Женский»
   experience: string; // стаж полных лет
-  factors29n: string; // вредность по 29н (строковое представление или коды)
-  periodicity: string; // "1 раз в год"
+  /** @deprecated Устарело: факторы 29н берутся из JobDirectoryItem.factorsConfig (контингент). Не использовать. */
+  factors29n?: string;
+  /** @deprecated Устарело: периодичность живёт только в HarmFactorConfig.periodicity. Не использовать. */
+  periodicity?: string;
   disability: string; // "нет"
   under18: string; // "нет"
   plannedMedicalDate: string; // Плановая дата медосмотра (ДД.ММ.ГГГГ)
   actualMedicalDate: string; // Фактическая дата медосмотра (ДД.ММ.ГГГГ)
-  pso342n: string; // Приложения и пункты 342н
+  /** @deprecated Устарело: психиатрия 342н берётся из JobDirectoryItem.psychiatryPoints (контингент). Не использовать. */
+  pso342n?: string;
   medicalStatus?: 'scheduled' | 'completed' | 'expired' | 'pending';
   medicalConclusion?: string; // Заключение или примечание
-  soutClass?: SoutClassType | string; // Индивидуальный класс условий труда (1, 2, 3.1, 3.2, 3.3, 3.4, 4)
-  soutCardNumber?: string; // Номер карты СОУТ
+  /** @deprecated Устарело: класс СОУТ НЕЛЬЗЯ переопределять в карточке сотрудника — только из контингента (jobDirectory). Не использовать. */
+  soutClass?: SoutClassType | string;
+  /** @deprecated Устарело: номер карты СОУТ берётся из контингента/реестра SoutWorkplace. Не использовать. */
+  soutCardNumber?: string;
   harmFactorsCompletedLastYear?: string[]; // Факторы, пройденные в прошлом году (для фильтрации 1 раз в 2 года)
   lastHarmCompletedYear?: number;
   companyId?: string; // Привязка к конкретному юрлицу
@@ -52,14 +57,16 @@ export interface JobDirectoryItem {
   electricalSafety: string; // "1 группа", "2 группа", "нет"
   instructionProgram: string;
   internshipProgram: string;
-  factors: string; // вредность (29н)
-  psychiatry: string; // психиатрия (342н)
+  /** @deprecated Устарело: используйте factorsConfig (набор факторов с периодичностью). Оставлено для обратной совместимости старых данных. */
+  factors: string; // вредность (29н) — строковое представление, read-only legacy
+  /** @deprecated Устарело: используйте psychiatryPoints (массив пунктов 342н). Оставлено для обратной совместимости старых данных. */
+  psychiatry: string; // психиатрия (342н) — строковое представление, read-only legacy
   instructionDoc: string; // Инструкция по ОТ
   sout: string; // Номер карты СОУТ
   soutClass: SoutClassType | string; // Класс условий труда по СОУТ ("1", "2", "3.1", "3.2", "3.3", "3.4", "4")
   opr: string; // Номер карты ОПР (оценка проф. рисков)
-  factorsConfig?: HarmFactorConfig[]; // Набор факторов с индивидуальной периодичностью
-  psychiatryPoints?: string[]; // Выбранные пункты 342н
+  factorsConfig?: HarmFactorConfig[]; // Набор факторов с индивидуальной периодичностью (источник истины)
+  psychiatryPoints?: string[]; // Выбранные пункты 342н (источник истины)
   companyId?: string; // Привязка к конкретному юрлицу
 }
 
