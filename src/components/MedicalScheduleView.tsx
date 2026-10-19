@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CompanySettings, Employee, ExamType, JobDirectoryItem, SoutClassType } from '../lib/types';
+import { CompanySettings, Employee, ExamType, JobDirectoryItem } from '../lib/types';
 import {
   getEmployeeMedicalEligibility,
   getEmployeeJobExperienceYears,
@@ -297,12 +297,7 @@ export const MedicalScheduleView: React.FC<MedicalScheduleViewProps> = ({
     );
   };
 
-  // Быстрое изменение класса СОУТ
-  const handleQuickSoutClassChange = (empId: string, soutClass: SoutClassType) => {
-    onUpdateEmployees(
-      employees.map((e) => (e.id === empId ? { ...e, soutClass } : e))
-    );
-  };
+  // D2: быстрого изменения класса СОУТ нет — источник истины jobDirectory (контингент), read-only
 
   // Очистка дат у выбранных
   const handleClearSelectedDates = (which: 'all' | 'planned' | 'actual') => {
@@ -732,7 +727,7 @@ export const MedicalScheduleView: React.FC<MedicalScheduleViewProps> = ({
                   const isSelected = selectedIds.has(emp.id);
                   const statusInfo = getEmployeeStatus(emp);
                   const isEditing = editingEmpId === emp.id;
-                  const isFemale = emp.gender === 'жен' || emp.gender === 'ж';
+                  const isFemale = emp.gender === 'ж';
                   const isHarmful = isHarmfulSoutClass(eligibility.effectiveSoutClass);
 
                   const factorCalc = filterEmployeeHarmFactors(emp, jobDirectory);
@@ -799,27 +794,18 @@ export const MedicalScheduleView: React.FC<MedicalScheduleViewProps> = ({
                         {emp.post}
                       </td>
 
-                      {/* Класс СОУТ */}
+                      {/* Класс СОУТ — read-only из контингента (jobDirectory), D2 */}
                       <td className="py-2.5 px-2 text-center">
-                        <select
-                          value={eligibility.effectiveSoutClass}
-                          onChange={(e) =>
-                            handleQuickSoutClassChange(emp.id, e.target.value as SoutClassType)
-                          }
-                          className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm border cursor-pointer ${
+                        <span
+                          className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm border ${
                             isHarmful
                               ? 'bg-rose-50 text-rose-800 border-rose-300'
                               : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                           }`}
+                          title="Класс условий труда берётся из карты СОУТ должности (контингент) и не редактируется здесь"
                         >
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3.1">3.1</option>
-                          <option value="3.2">3.2</option>
-                          <option value="3.3">3.3</option>
-                          <option value="3.4">3.4</option>
-                          <option value="4">4</option>
-                        </select>
+                          {eligibility.effectiveSoutClass}
+                        </span>
                       </td>
 
                       {/* Стаж */}

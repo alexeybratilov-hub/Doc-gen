@@ -330,8 +330,7 @@ export function filterEmployeeHarmFactors(
   const job = jobDirectory.find(
     (j) => j.post && j.post.trim().toLowerCase() === (emp.post || '').trim().toLowerCase()
   );
-
-  // Если у должности задан детальный конфиг факторов
+  // Если у должности задан детальный конфиг факторов — это источник истины (контингент)
   if (job?.factorsConfig && job.factorsConfig.length > 0) {
     const completedLastYear = emp.harmFactorsCompletedLastYear || [];
     const included: string[] = [];
@@ -352,7 +351,8 @@ export function filterEmployeeHarmFactors(
     };
   }
 
-  // Если факторы хранятся строкой
+  // TODO: fallback для legacy-данных без factorsConfig (emp.factors29n / job.factors).
+  // После полной миграции данных на factorsConfig этот блок будет удалён.
   const rawFactors = (emp.factors29n || job?.factors || '').trim();
   if (!rawFactors || rawFactors.toLowerCase() === 'нет') {
     return { effectiveFactorsText: '', includedCodes: [], excluded2YearCodes: [] };
@@ -405,7 +405,8 @@ export function getEmployeeMedicalEligibility(
   );
   const factors = (emp.factors29n || job?.factors || '').trim();
   const psychiatry = (emp.pso342n || job?.psychiatry || '').trim();
-  const effectiveSoutClass = String(emp.soutClass || job?.soutClass || '2').trim();
+  // Класс СОУТ берётся ТОЛЬКО из контингента (jobDirectory) — переопределение в карточке сотрудника запрещено
+  const effectiveSoutClass = String(job?.soutClass || '2').trim();
   const jobYears = getEmployeeJobExperienceYears(emp);
 
   const hasHarmFactors = hasProgramValue(factors);
@@ -673,9 +674,9 @@ export async function generateDocuments({
       const psoValue = emp.pso342n || jobInfo?.psychiatry || '';
       const currentDateText = formatDateRu(new Date());
 
-      const genderText =
-        emp.gender === 'жен' || emp.gender === 'ж' ? 'женский' : 'мужской';
-      const effectiveSoutClass = String(emp.soutClass || jobInfo?.soutClass || '2').trim();
+      const genderText = emp.gender === 'ж' ? 'женский' : 'мужской';
+      // Класс СОУТ берётся ТОЛЬКО из контингента (jobDirectory) — переопределение в карточке сотрудника запрещено
+      const effectiveSoutClass = String(jobInfo?.soutClass || '2').trim();
 
       const examTypeText =
         companySettings.examType === 'профпатология'

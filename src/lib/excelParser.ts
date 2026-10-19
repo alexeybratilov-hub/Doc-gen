@@ -3,6 +3,14 @@ import { CompanySettings, Employee, EmployeeCategory, ExamType, JobDirectoryItem
 import { formatDateRu, parseDateRu } from './holidays';
 import { formatSequenceNumber } from './docxEngine';
 
+
+// Нормализация пола к строгому типу Employee.gender ('м' | 'ж')
+function normalizeGender(raw: string): 'м' | 'ж' {
+  const v = (raw || '').trim().toLowerCase();
+  if (v.startsWith('ж') || v.includes('жен') || v.includes('female')) return 'ж';
+  return 'м';
+}
+
 /**
  * Очистка строковых значений ячеек Excel
  */
@@ -254,7 +262,7 @@ export async function parseExcelWorkbook(fileBuffer: ArrayBuffer): Promise<{
         needGeneration: true,
         snils: cleanText(row.getCell(colSnils).value),
         phone: cleanText(row.getCell(colPhone).value),
-        gender: 'муж',
+        gender: 'м',
         experience: cleanText(row.getCell(colExp).value) || '1',
         factors29n: '',
         periodicity: '1 раз в год',
@@ -390,7 +398,7 @@ export async function parseExcelWorkbook(fileBuffer: ArrayBuffer): Promise<{
         needGeneration: true,
         snils: cleanText(row.getCell(colSnils).value),
         phone: '',
-        gender: cleanText(row.getCell(colGender).value) || 'муж',
+        gender: normalizeGender(cleanText(row.getCell(colGender).value)),
         experience: cleanText(row.getCell(colExp).value) || '1',
         factors29n: cleanText(row.getCell(colFactors).value),
         periodicity: cleanText(row.getCell(colPeriod).value) || '1 раз в год',

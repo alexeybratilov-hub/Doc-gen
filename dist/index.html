@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DocGen Portable - Охрана труда и Медосмотры</title>
+    <meta name="description" content="Автономный генератор кадровых документов по охране труда, медосмотрам (29н), психиатрии (342н) и СОУТ (426-ФЗ)" />
+    <meta property="og:title" content="DocGen Portable - Охрана труда и Медосмотры" />
+    <meta property="og:description" content="Автономный генератор кадровых документов по охране труда, медосмотрам (29н), психиатрии (342н) и СОУТ (426-ФЗ)" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="manifest" href="./manifest.json" />
+    <script type="module" crossorigin src="./assets/index-Cdysb74M.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CgUXreAu.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('SW registration skipped:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

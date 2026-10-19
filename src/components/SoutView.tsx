@@ -28,6 +28,7 @@ interface SoutViewProps {
   workplaces: SoutWorkplace[];
   onUpdateWorkplaces: (updated: SoutWorkplace[]) => void;
   departments: string[];
+  activeCompanyId: string;
 }
 
 type SortField = 'workplaceNumber' | 'dept' | 'post' | 'soutClass' | 'approvalDate' | 'expiryDate' | 'isDeclared';
@@ -37,6 +38,7 @@ export const SoutView: React.FC<SoutViewProps> = ({
   workplaces,
   onUpdateWorkplaces,
   departments,
+  activeCompanyId,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
@@ -82,6 +84,9 @@ export const SoutView: React.FC<SoutViewProps> = ({
 
   const filteredWorkplaces = useMemo(() => {
     return workplaces.filter((w) => {
+      // Модель изоляции A: показываем только карты СОУТ активной компании
+      if ((w.companyId || '') !== activeCompanyId) return false;
+
       const term = searchTerm.toLowerCase();
       const matchesSearch =
         (w.post || '').toLowerCase().includes(term) ||
@@ -101,7 +106,7 @@ export const SoutView: React.FC<SoutViewProps> = ({
 
       return matchesSearch && matchesDept && matchesClass && matchesDeclared;
     });
-  }, [workplaces, searchTerm, selectedDept, filterClass, filterDeclared]);
+  }, [workplaces, searchTerm, selectedDept, filterClass, filterDeclared, activeCompanyId]);
 
   const sortedWorkplaces = useMemo(() => {
     return [...filteredWorkplaces].sort((a, b) => {
