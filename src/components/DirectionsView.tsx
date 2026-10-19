@@ -147,13 +147,7 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
     );
   };
 
-  // Быстрое изменение класса СОУТ сотрудника
-  const handleQuickSoutClassChange = (empId: string, soutClass: SoutClassType) => {
-    if (!onUpdateEmployees) return;
-    onUpdateEmployees(
-      employees.map((e) => (e.id === empId ? { ...e, soutClass } : e))
-    );
-  };
+  // D2: быстрый класс СОУТ не изменяется в DirectionsView — источник истины jobDirectory (контингент), read-only
 
   // Поиск и сортировка
   const filteredList = useMemo(() => {
@@ -504,7 +498,7 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                 sortedList.map(({ employee: emp, eligibility }) => {
                   const isChecked = selectedIds.has(emp.id);
                   const hasPso = eligibility.hasPsychiatry;
-                  const isFemale = emp.gender === 'жен' || emp.gender === 'ж';
+                  const isFemale = emp.gender === 'ж';
                   const isHarmful = isHarmfulSoutClass(eligibility.effectiveSoutClass);
 
                   // Расчет факторов с учетом 1 год / 2 года
@@ -562,27 +556,18 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                         <div className="text-[11px] text-slate-500">{emp.dept}</div>
                       </td>
 
-                      {/* Селектор класса вредности СОУТ */}
+                      {/* Класс СОУТ — read-only из контингента (jobDirectory) */}
                       <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={eligibility.effectiveSoutClass}
-                          onChange={(e) =>
-                            handleQuickSoutClassChange(emp.id, e.target.value as SoutClassType)
-                          }
-                          className={`text-xs font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:ring-0 ${
+                        <span
+                          className={`inline-block text-xs font-bold px-2 py-0.5 rounded-md border ${
                             isHarmful
-                              ? 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
                               : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                           }`}
+                          title="Класс задаётся в контингенте (карта СОУТ должности)"
                         >
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3.1">3.1</option>
-                          <option value="3.2">3.2</option>
-                          <option value="3.3">3.3</option>
-                          <option value="3.4">3.4</option>
-                          <option value="4">4</option>
-                        </select>
+                          {eligibility.effectiveSoutClass}
+                        </span>
                       </td>
 
                       <td className="py-3 px-3 text-center font-medium text-slate-700">
@@ -688,8 +673,8 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Пол:</label>
                   <select
-                    value={editingEmp.gender === 'жен' || editingEmp.gender === 'ж' ? 'ж' : 'м'}
-                    onChange={(e) => setEditingEmp({ ...editingEmp, gender: e.target.value })}
+                    value={editingEmp.gender === 'ж' ? 'ж' : 'м'}
+                    onChange={(e) => setEditingEmp({ ...editingEmp, gender: e.target.value as 'м' | 'ж' })}
                     className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                   >
                     <option value="м">Мужской (м)</option>
@@ -701,24 +686,26 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                   <label className="block font-bold text-slate-700 mb-1">
                     Класс условий труда по СОУТ:
                   </label>
-                  <select
-                    value={editingEmp.soutClass || '2'}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        soutClass: e.target.value as SoutClassType,
-                      })
-                    }
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                  >
-                    <option value="1">1 (Оптимальный)</option>
-                    <option value="2">2 (Допустимый)</option>
-                    <option value="3.1">3.1 (Вредный 1 ст.)</option>
-                    <option value="3.2">3.2 (Вредный 2 ст.)</option>
-                    <option value="3.3">3.3 (Вредный 3 ст.)</option>
-                    <option value="3.4">3.4 (Вредный 4 ст.)</option>
-                    <option value="4">4 (Опасный)</option>
-                  </select>
+                  {(() => {
+                    const cls = String(
+                      jobDirectory.find((j) => j.post.trim().toLowerCase() === (editingEmp.post || '').trim().toLowerCase())?.soutClass || '2'
+                    ).trim();
+                    const harmful = ['3.1', '3.2', '3.3', '3.4', '4'].includes(cls);
+                    return (
+                      <div
+                        className={`w-full p-2 rounded-lg text-xs font-bold border ${
+                          harmful
+                            ? 'bg-rose-50 text-rose-800 border-rose-300'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        }`}
+                      >
+                        {cls}
+                      </div>
+                    );
+                  })()}
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Read-only. Изменяется только в контингенте (карта СОУТ должности).
+                  </p>
                 </div>
               </div>
 
@@ -745,15 +732,39 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Индивидуальные факторы вредности (29н):
+                  Факторы вредности (29н) и периодичность — из контингента:
                 </label>
-                <input
-                  type="text"
-                  value={editingEmp.factors29n}
-                  onChange={(e) => setEditingEmp({ ...editingEmp, factors29n: e.target.value })}
-                  placeholder="Например: 4.4; 5.1; п. 9;"
-                  className="w-full p-2 border border-slate-300 rounded-lg text-xs font-mono"
-                />
+                {(() => {
+                  const jobForFactors = jobDirectory.find(
+                    (j) => j.post.trim().toLowerCase() === (editingEmp.post || '').trim().toLowerCase()
+                  );
+                  const configs = jobForFactors?.factorsConfig || [];
+                  if (configs.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-500 italic p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                        Факторы не заданы. Настройка — в контингенте («Сотрудники и контингент» → Медосмотры 29н).
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-1 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                      {configs.map((f) => (
+                        <div key={f.code} className="flex items-center justify-between text-[11px]">
+                          <span className="font-mono font-bold text-slate-800">
+                            {f.code}
+                            {f.name ? <span className="font-sans font-normal text-slate-500"> — {f.name}</span> : null}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-sm font-semibold text-slate-600">
+                            {f.periodicity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Read-only. Источник истины — контингент (factorsConfig должности).
+                </p>
               </div>
 
               {/* Учет факторов прошлого года для периодичности 1 раз в 2 года */}
@@ -767,11 +778,19 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                 </p>
 
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {(editingEmp.factors29n || jobDirectory.find((j) => j.post === editingEmp.post)?.factors || '')
-                    .split(';')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                    .map((code) => {
+                  {(() => {
+                    const jobForCompleted = jobDirectory.find(
+                      (j) => j.post.trim().toLowerCase() === (editingEmp.post || '').trim().toLowerCase()
+                    );
+                    const codes = (jobForCompleted?.factorsConfig || []).map((f) => f.code);
+                    if (codes.length === 0) {
+                      return (
+                        <span className="text-[11px] text-slate-400 italic">
+                          Нет факторов из контингента для этой должности.
+                        </span>
+                      );
+                    }
+                    return codes.map((code) => {
                       const isCompleted = (editingEmp.harmFactorsCompletedLastYear || []).includes(code);
                       return (
                         <button
@@ -788,7 +807,8 @@ export const DirectionsView: React.FC<DirectionsViewProps> = ({
                           {isCompleted ? <span>(Пройден в прошлом году)</span> : <span>(Включать в этом году)</span>}
                         </button>
                       );
-                    })}
+                    });
+                  })()}
                 </div>
               </div>
 

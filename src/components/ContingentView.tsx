@@ -384,8 +384,16 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 select-text">
                 {sortedJobs.map((job) => {
-                  const hasHarm = job.factors && job.factors.trim().toLowerCase() !== 'нет' && job.factors.trim() !== '';
-                  const hasPsych = job.psychiatry && job.psychiatry.trim().toLowerCase() !== 'нет' && job.psychiatry.trim() !== '';
+                  // D1: «Вредность (29н)» и «Психиатрия (342н)» — из factorsConfig / psychiatryPoints (источник истины),
+                  // legacy-строки job.factors / job.psychiatry — только fallback для старых данных
+                  const harmDisplay = (job.factorsConfig && job.factorsConfig.length > 0)
+                    ? job.factorsConfig.map((f) => f.code).join('; ') + ';'
+                    : (job.factors || '');
+                  const hasHarm = harmDisplay.trim() !== '' && harmDisplay.trim().toLowerCase() !== 'нет;';
+                  const psychDisplay = (job.psychiatryPoints && job.psychiatryPoints.length > 0)
+                    ? job.psychiatryPoints.join(', ')
+                    : (job.psychiatry || '');
+                  const hasPsych = psychDisplay.trim() !== '' && psychDisplay.trim().toLowerCase() !== 'нет';
                   const isHarmfulClass = ['3.1', '3.2', '3.3', '3.4', '4'].includes(String(job.soutClass || ''));
 
                   return (
@@ -445,7 +453,7 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
                       <td className="py-2.5 px-3 font-mono">
                         {hasHarm ? (
                           <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded-sm border border-rose-200">
-                            {job.factors}
+                            {harmDisplay}
                           </span>
                         ) : (
                           <span className="text-slate-400">нет</span>
@@ -455,7 +463,7 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
                       <td className="py-2.5 px-3 font-mono">
                         {hasPsych ? (
                           <span className="bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded-sm border border-teal-200">
-                            п. {job.psychiatry}
+                            п. {psychDisplay}
                           </span>
                         ) : (
                           <span className="text-slate-400">нет</span>
@@ -514,16 +522,13 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
                     <th className="py-3 px-3">Подразделение</th>
                     <th className="py-3 px-3">Класс СОУТ</th>
                     <th className="py-3 px-4">Вредные факторы (29н) и периодичность</th>
-                    <th className="py-3 px-4">Виды выполняемых работ (29н)</th>
                     <th className="py-3 px-3 text-center">Настройка факторов</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 select-text">
                   {sortedJobs.map((job) => {
-                    // Разделим на факторы и работы
+                    // D1: единый столбец «Вредные факторы (29н) и периодичность» — все записи factorsConfig построчно
                     const configs = job.factorsConfig || [];
-                    const workItems = configs.filter((c) => c.code.toLowerCase().startsWith('п.') || parseInt(c.code, 10) >= 6);
-                    const factorItems = configs.filter((c) => !c.code.toLowerCase().startsWith('п.') && (isNaN(parseInt(c.code, 10)) || parseInt(c.code, 10) < 6));
 
                     return (
                       <tr key={job.id} className="hover:bg-slate-50 transition">
@@ -549,15 +554,24 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
                         </td>
 
                         <td className="py-3 px-4">
-                          {factorItems.length > 0 ? (
+                          {configs.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
-                              {factorItems.map((f) => (
+                              {configs.map((f) => (
                                 <span
                                   key={f.code}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-md text-[11px]"
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
+                                    f.code.toLowerCase().startsWith('п.') || parseInt(f.code, 10) >= 6
+                                      ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                                  }`}
                                 >
                                   <span className="font-bold">{f.code}</span>
-                                  <span className="text-[9px] px-1 bg-white border border-rose-200 rounded-sm font-semibold">
+                                  {f.name ? (
+                                    <span className="text-[9px] text-slate-500 max-w-[180px] truncate" title={f.name}>
+                                      {f.name}
+                                    </span>
+                                  ) : null}
+                                  <span className="text-[9px] px-1 bg-white border border-slate-200 rounded-sm font-semibold">
                                     {f.periodicity}
                                   </span>
                                 </span>
@@ -569,26 +583,6 @@ export const ContingentView: React.FC<ContingentViewProps> = ({
                             </span>
                           ) : (
                             <span className="text-slate-400">Нет</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-4">
-                          {workItems.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                              {workItems.map((w) => (
-                                <span
-                                  key={w.code}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-md text-[11px]"
-                                >
-                                  <span className="font-bold">{w.code}</span>
-                                  <span className="text-[9px] px-1 bg-white border border-indigo-200 rounded-sm font-semibold">
-                                    {w.periodicity}
-                                  </span>
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">Не установлены</span>
                           )}
                         </td>
 

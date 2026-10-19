@@ -19,6 +19,7 @@ interface ExcelTransferViewProps {
   employees: Employee[];
   jobDirectory: JobDirectoryItem[];
   companySettings: CompanySettings;
+  activeCompanyId: string;
   onImportSuccess: (
     newEmployees: Employee[],
     newJobDirectory: JobDirectoryItem[],
@@ -30,6 +31,7 @@ export const ExcelTransferView: React.FC<ExcelTransferViewProps> = ({
   employees,
   jobDirectory,
   companySettings,
+  activeCompanyId,
   onImportSuccess,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,9 +68,13 @@ export const ExcelTransferView: React.FC<ExcelTransferViewProps> = ({
 
   const handleApplyImport = () => {
     if (!importPreview) return;
+    // D4: всем импортируемым записям принудительно проставляем активную компанию
+    // (модель изоляции A — данные не могут «протечь» в другую компанию).
+    const stampedEmployees = importPreview.employees.map((e) => ({ ...e, companyId: activeCompanyId }));
+    const stampedJobs = importPreview.jobDirectory.map((j) => ({ ...j, companyId: activeCompanyId }));
     onImportSuccess(
-      importPreview.employees.length > 0 ? importPreview.employees : employees,
-      importPreview.jobDirectory.length > 0 ? importPreview.jobDirectory : jobDirectory,
+      stampedEmployees.length > 0 ? stampedEmployees : employees,
+      stampedJobs.length > 0 ? stampedJobs : jobDirectory,
       importPreview.companySettings
     );
     alert(`Данные из файла «${importPreview.fileName}» успешно импортированы!`);
