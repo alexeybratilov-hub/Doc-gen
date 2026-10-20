@@ -8,9 +8,11 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-let baseDir = path.join(__dirname, 'app');
+// Q4=A: приоритет статики — dist/ первый, app/ fallback для совместимости
+// со старыми ZIP-бандлами (R8), иначе cwd.
+let baseDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(baseDir)) {
-  baseDir = path.join(__dirname, 'dist');
+  baseDir = path.join(__dirname, 'app');
 }
 if (!fs.existsSync(baseDir)) {
   baseDir = __dirname;

@@ -84,8 +84,10 @@ export const HistoryAndBackupView: React.FC<HistoryAndBackupViewProps> = ({
           bundle.companies,
           bundle.activeCompanyId,
           bundle.soutWorkplaces,
-          // importProjectFromJson уже десериализовал fileBufferBase64 -> fileBuffer (ArrayBuffer)
-          bundle.templates as unknown as TemplateItem[] | undefined
+          // R21: importProjectFromJson возвращает ImportedProjectBundle, в котором
+          // templates уже десериализованы (fileBuffer: ArrayBuffer) и имеют честный
+          // тип TemplateItem[] — приведение as unknown не требуется.
+          bundle.templates
         );
         alert('Резервная копия проекта успешно восстановлена!');
       } catch (err: any) {

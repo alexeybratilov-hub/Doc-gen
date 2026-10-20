@@ -98,7 +98,16 @@ export function exportProjectToJson(
   return JSON.stringify(bundle, null, 2);
 }
 
-export function importProjectFromJson(jsonStr: string): ProjectBundle {
+/**
+ * R21: тип результата импорта. Отличается от ProjectBundle («что лежит на диске»,
+ * где templates — SerializedTemplateItem[]) тем, что после importProjectFromJson
+ * шаблоны уже десериализованы: templates?: TemplateItem[] (fileBuffer: ArrayBuffer).
+ */
+export type ImportedProjectBundle = Omit<ProjectBundle, 'templates'> & {
+  templates?: TemplateItem[];
+};
+
+export function importProjectFromJson(jsonStr: string): ImportedProjectBundle {
   const parsed = JSON.parse(jsonStr);
   if (!parsed.companySettings || !Array.isArray(parsed.employees) || !Array.isArray(parsed.jobDirectory)) {
     throw new Error('Некорректный формат файла проекта.');
@@ -106,22 +115,13 @@ export function importProjectFromJson(jsonStr: string): ProjectBundle {
   const bundle = parsed as ProjectBundle;
   // Обратная совместимость: бэкапы '1.1.0' без новых полей читаются как есть
   // (soutWorkplaces/templates остаются undefined). Блокировки по версии нет.
-  if (bundle.templates) {
-    bundle.templates = serializeTemplatesGuard(bundle.templates);
-  }
-  return bundle;
-}
-
-/**
- * Защита импорта: если в файле templates оказались объекты с fileBuffer вместо
- * fileBufferBase64 (например, бэкап, собранный другой версией), приводим к
- * каноническому формату десериализации. Обычный путь — decode base64 -> ArrayBuffer.
- */
-function serializeTemplatesGuard(templates: SerializedTemplateItem[]): SerializedTemplateItem[] {
-  // На выходе из importProjectFromJson храним templates уже десериализованными
-  // (fileBuffer: ArrayBuffer). Тип совпадает с TemplateItem структурно, поэтому
-  // приведение безопасно.
-  return deserializeTemplates(templates) as unknown as SerializedTemplateItem[];
+  // R21: templates десериализуются (fileBufferBase64 -> fileBuffer: ArrayBuffer)
+  // и возвращаются в честном типе TemplateItem[].
+  const imported: ImportedProjectBundle = {
+    ...bundle,
+    templates: deserializeTemplates(bundle.templates),
+  };
+  return imported;
 }
 
 export async function createPortableZipBundle({
@@ -156,12 +156,12 @@ echo.
 
 where msedge.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    if exist "%~dp0app\\index.html" (
-        start "" msedge.exe --app="file:///%~dp0app/index.html"
-        exit /b 0
-    )
     if exist "%~dp0dist\\index.html" (
         start "" msedge.exe --app="file:///%~dp0dist/index.html"
+        exit /b 0
+    )
+    if exist "%~dp0app\\index.html" (
+        start "" msedge.exe --app="file:///%~dp0app/index.html"
         exit /b 0
     )
     if exist "%~dp0index.html" (
@@ -170,12 +170,12 @@ if %errorlevel% equ 0 (
     )
 )
 
-if exist "%~dp0app\\index.html" (
-    start "" "%~dp0app\\index.html"
-    exit /b 0
-)
 if exist "%~dp0dist\\index.html" (
     start "" "%~dp0dist\\index.html"
+    exit /b 0
+)
+if exist "%~dp0app\\index.html" (
+    start "" "%~dp0app\\index.html"
     exit /b 0
 )
 if exist "%~dp0index.html" (
@@ -200,9 +200,10 @@ powershell.exe -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTi
 # Не требует установки Node.js, Python или каких-либо сторонних библиотек
 
 $port = 3000
-$rootPath = Join-Path $PSScriptRoot "app"
+# Q4=A: приоритет статики — dist/ первый, app/ fallback для старых бандлов
+$rootPath = Join-Path $PSScriptRoot "dist"
 if (-not (Test-Path $rootPath)) {
-    $rootPath = Join-Path $PSScriptRoot "dist"
+    $rootPath = Join-Path $PSScriptRoot "app"
 }
 if (-not (Test-Path $rootPath)) {
     $rootPath = $PSScriptRoot
@@ -299,9 +300,10 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-let baseDir = path.join(__dirname, 'app');
+// Q4=A: приоритет статики — dist/ первый, app/ fallback (R8), иначе cwd.
+let baseDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(baseDir)) {
-  baseDir = path.join(__dirname, 'dist');
+  baseDir = path.join(__dirname, 'app');
 }
 if (!fs.existsSync(baseDir)) {
   baseDir = __dirname;
