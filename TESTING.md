@@ -114,6 +114,7 @@
 ### 4.14 Windows-запуск (start.bat / run.ps1 / stop.bat)
 - Требует реальной Windows-машины. **В текущей среде непроверяемо (R13)** — помечать как «непроверено», а не как «работает».
 - R13 уточнён: node server.ts на Node ≥22 исполняется, на Node ≤20 — нет (ERR_UNKNOWN_FILE_EXTENSION). Сценарий npm start на целевой Windows-машине — [ручка].
+- Q4=A (20.10.2026): start.bat открывает dist/index.html (приоритет dist/, app/ — fallback для старых бандлов); run.ps1 использует server.cjs, который раздаёт dist/.
 
 ### 4.15 Проверка R19 / R20
 - **R19:** npm ci без флага --legacy-peer-deps в чистом окружении должен воспроизвести конфликт vite/esbuild. Зафиксировать поведение.

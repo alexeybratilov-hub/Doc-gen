@@ -2,9 +2,10 @@
 $Host.UI.RawUI.WindowTitle = "DocGen Portable - Генератор документов"
 
 $port = 3000
-$rootPath = Join-Path $PSScriptRoot "app"
+# Q4=A: приоритет статики — dist/ первый, app/ fallback для старых бандлов
+$rootPath = Join-Path $PSScriptRoot "dist"
 if (-not (Test-Path $rootPath)) {
-    $rootPath = Join-Path $PSScriptRoot "dist"
+    $rootPath = Join-Path $PSScriptRoot "app"
 }
 if (-not (Test-Path $rootPath)) {
     $rootPath = $PSScriptRoot

@@ -156,12 +156,12 @@ echo.
 
 where msedge.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    if exist "%~dp0app\\index.html" (
-        start "" msedge.exe --app="file:///%~dp0app/index.html"
-        exit /b 0
-    )
     if exist "%~dp0dist\\index.html" (
         start "" msedge.exe --app="file:///%~dp0dist/index.html"
+        exit /b 0
+    )
+    if exist "%~dp0app\\index.html" (
+        start "" msedge.exe --app="file:///%~dp0app/index.html"
         exit /b 0
     )
     if exist "%~dp0index.html" (
@@ -170,12 +170,12 @@ if %errorlevel% equ 0 (
     )
 )
 
-if exist "%~dp0app\\index.html" (
-    start "" "%~dp0app\\index.html"
-    exit /b 0
-)
 if exist "%~dp0dist\\index.html" (
     start "" "%~dp0dist\\index.html"
+    exit /b 0
+)
+if exist "%~dp0app\\index.html" (
+    start "" "%~dp0app\\index.html"
     exit /b 0
 )
 if exist "%~dp0index.html" (
@@ -200,9 +200,10 @@ powershell.exe -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTi
 # Не требует установки Node.js, Python или каких-либо сторонних библиотек
 
 $port = 3000
-$rootPath = Join-Path $PSScriptRoot "app"
+# Q4=A: приоритет статики — dist/ первый, app/ fallback для старых бандлов
+$rootPath = Join-Path $PSScriptRoot "dist"
 if (-not (Test-Path $rootPath)) {
-    $rootPath = Join-Path $PSScriptRoot "dist"
+    $rootPath = Join-Path $PSScriptRoot "app"
 }
 if (-not (Test-Path $rootPath)) {
     $rootPath = $PSScriptRoot
@@ -299,9 +300,10 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-let baseDir = path.join(__dirname, 'app');
+// Q4=A: приоритет статики — dist/ первый, app/ fallback (R8), иначе cwd.
+let baseDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(baseDir)) {
-  baseDir = path.join(__dirname, 'dist');
+  baseDir = path.join(__dirname, 'app');
 }
 if (!fs.existsSync(baseDir)) {
   baseDir = __dirname;
