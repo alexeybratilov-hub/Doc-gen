@@ -35,25 +35,33 @@
 4. Этап C+D разработки (типы, defaultData, docxEngine, вкладки, мастер создания компании, Excel-импорт с companyId) завершён ранее; его результаты присутствуют в коде HEAD (проверено выборочно при ревизии ARCHITECTURE.md).
 5. Перепроверка ключевых утверждений для текущего документа (см. §5 «Известные дефекты и риски»): отсутствие обработки ошибок квоты localStorage, непостоянное хранение templates/holidaysList, состав ProjectBundle, расхождение правила ПСО, наличие companyId в CompanySetupWizard, отсутствие пропа `activeCompanyId` у ContingentView/DirectionsView/MedicalScheduleView (ни в интерфейсах props, ни в рендере App.tsx) и строгая фильтрация в SoutView — всё подтверждено grep/чтением кода 19.10.2026.
 6. Независимый аудит Google AI Studio проведён 20.10.2026. Аудитор подтвердил риски R1–R15 (с уточнением по R13), выявил новые дефекты (зафиксированы ниже как R16–R18) и указал на рассинхронизацию документов постоянного контекста. Отчёт и уточнения получены в чате куратора.
+7. **R17** (server.cjs: эндпоинт /api/portable-bundle-files) — исправлен, **в HEAD** (проверено: git show HEAD:server.cjs содержит обработчик).
+8. **R18** (MedicalScheduleView.tsx:977: нормализация post) — исправлен, **в HEAD** (проверено по строке 977 в HEAD).
+9. **D1/R16** (companyFilter.ts + App.tsx: фильтрация employees по activeCompanyId для DirectionsView и MedicalScheduleView) — исправлен, **в HEAD** (companyFilter.ts присутствует в HEAD; companyEmployees в HEAD App.tsx — 3 вхождения).
+10. **R11/Q1-правка** (docxEngine.ts: ПСО только при examType='предварительный' в instructions) — исправлен, **в HEAD** (HEAD docxEngine.ts:592 — allowPSO с проверкой examType).
+11. **Q2/R4/R5** (portableManager.ts: soutWorkplaces и templates в ProjectBundle, версия '1.2.0', HistoryAndBackupView + App.tsx) — исправлен, **в HEAD** (коммит 4a0a9d6).
+12. **Q4/R8** (start.bat/run.ps1/server.cjs → dist/, генерируемые скрипты в createPortableZipBundle) — исправлен, **в HEAD** (коммит 0533266; server.cjs baseDir dist/→app/→cwd, start.bat/run.ps1 ссылаются на dist/). **Частично:** app/index.html всё ещё отслеживается git (git ls-files app непуст), в .gitignore есть только `app/assets/`, полной строки `app/` нет — остаток Q4 не завершён (см. §5 R8, §7).
+13. **R21** (portableManager.ts + HistoryAndBackupView.tsx: ImportedProjectBundle, serializeTemplatesGuard удалён, as unknown as TemplateItem убран) — исправлен, **в индексе (staged)**, ожидает коммита владельцем.
 
 ---
 
 ## 3. В работе
 
-Актуализация документации по итогам R17/R18 и решений Q1–Q5 (текущая задача). После неё — D1 (R16, стратегия Q3=D).
+Синхронизация документов постоянного контекста перед повторным аудитом (текущая задача).
 
 ---
 
 ## 4. Запланировано
 
-1. **D1 (R16)** — единая функция-фильтр по companyId в `lib/`, применение в App.tsx для DirectionsView и MedicalScheduleView (Q3=D).
-2. **Q1-правка:** привести instructions к правилу directions (ПСО только при examType='предварительный') — docxEngine.ts:603.
-3. **Q2-правка:** включить soutWorkplaces и templates в ProjectBundle (Q2=A) — portableManager.ts + HistoryAndBackupView.tsx.
-4. **Q4-правка:** удалить app/ из git, добавить в .gitignore, поправить start.bat на dist/ (Q4=A).
-5. **Q1-расширение (отложено):** добавление examType='внеочередной' и отдельной подвкладки ПСО — после проверки, существуют ли они в коде.
-6. **UI-переработка медосмотров** в таблицу с выпадающим списком типов — отдельное улучшение UX, не входит в этап исправления дефектов.
-7. **Q5:** добавить Vitest на критичные функции (docxEngine, holidays, excelParser.normalizeGender, portableManager.importProjectFromJson) — после закрытия текущих R и Q.
-8. **Повторный аудит Google AI Studio** — после D1 и Q1-правки.
+1. **Повторный аудит Google AI Studio** по чек-листу AI_HANDOFF.md §5 (после синхронизации документов и коммита R21).
+2. **R6** (пустые history/companies в ZIP-бэкапе) — не исправлено, требует отдельного решения.
+3. **R19** (конфликт vite/esbuild, установка только через `npm ci --legacy-peer-deps`) — решение: зафиксировать флаг в документации и/или обновить версии зависимостей.
+4. **R20** (OOM в server.cjs при baseDir=cwd с node_modules) — решение: исключить node_modules из обхода и/или вернуть понятную ошибку.
+5. **R22** (позиционные аргументы exportProjectToJson — 9 аргументов, нечитаемо) — перевести на объект параметров при следующей правке portableManager.ts.
+6. **Убрать magic string `'comp-catania'`** из companyFilter.ts, EmployeesView.tsx, InstructionsView.tsx — вынести в константу.
+7. **Q1-расширение:** добавить examType='внеочередной' и отдельную подвкладку ПСО — требует проектирования (новое значение в union-типе, миграция, UI).
+8. **UI-переработка медосмотров** в таблицу с выпадающим списком типов — отдельное улучшение UX.
+9. **Q5:** Vitest на критичные функции (docxEngine, holidays, excelParser.normalizeGender, portableManager.importProjectFromJson) — после закрытия текущих R.
 
 ---
 
@@ -66,23 +74,25 @@
 | R1 | Нет автотестов, CI и отдельного линтера; npm-скрипт `lint` = `tsc --noEmit` (подтверждено package.json) | Высокая | [код] |
 | R2 | При записи в localStorage ошибки не перехватываются: только `console.warn('Failed to save ...')`; ветка `QuotaExceededError` отсутствует (grep по src/App.tsx — 0 совпадений). При переполнении квоты изменения теряются молча | Высокая | [код]; реальное поведение при переполнении [ручка] |
 | R3 | `templates` (включая .docx fileBuffer) и `holidaysList` не персистятся: App.tsx:160–161 инициализируются из DEFAULT_* без useEffect-записи в localStorage — загруженные шаблоны и отредактированные праздники сбрасываются после перезагрузки страницы | Высокая | [код] |
-| R4 | `soutWorkplaces` отсутствуют в типе `ProjectBundle` (portableManager.ts:6–16) — JSON-бэкап не включает карты СОУТ | Высокая | [код] |
-| R5 | `templates` также отсутствуют в `ProjectBundle` — шаблоны не попадают ни в JSON-бэкап, ни в ZIP | Средняя | [код] |
+| R4 | `soutWorkplaces` отсутствуют в типе `ProjectBundle` (portableManager.ts:6–16) — JSON-бэкап не включает карты СОУТ. **Исправлен 20.10.2026 (Q2).** | Высокая | исправлен в HEAD (Q2, версия ProjectBundle '1.2.0') |
+| R5 | `templates` также отсутствуют в `ProjectBundle` — шаблоны не попадают ни в JSON-бэкап, ни в ZIP. **Исправлен 20.10.2026 (Q2):** templates включены, fileBuffer сериализуется как base64. | Средняя | исправлен в HEAD (Q2, версия ProjectBundle '1.2.0') |
 | R6 | Вложенный `project_backup.json` внутри ZIP формируется с пустым `history` (в явном виде передан `[]`, portableManager.ts:345) и без `companies`/`activeCompanyId` (опущены в вызове) — неполнее пользовательского экспорта из HistoryAndBackupView | Средняя | [код] |
 | R7 | Разнобой фильтрации по companyId (перепроверено 19.10.2026): **ContingentView, DirectionsView, MedicalScheduleView не получают `activeCompanyId`** — проп отсутствует и в интерфейсах компонентов (ContingentView.tsx:24–28, DirectionsView.tsx:33–41, MedicalScheduleView.tsx:37–43), и в местах их рендера в App.tsx; Employees/Instructions — легаси-правило; Sout — строгая фильтрация (SoutView.tsx:88). Фактически изоляция отсутствует даже на уровне props трёх вкладок | Высокая | [код]; практический сценарий переключения компаний [ручка] |
-| R8 | R8 (Средняя; [код]). Исправлен в рабочем дереве по решению Q4=A: app/ удалена из git и добавлена в .gitignore, приоритет статики переведён на dist/ (server.cjs: dist/ → app/ → cwd, start.bat и run.ps1 обновлены, генерируемые скрипты в createPortableZipBundle — тоже). Ожидает коммита владельцем. Остаточный риск: dist/ tracked и может устаревать при правках src/ без npm run build — следить за актуальностью dist/ перед коммитом. | Средняя | исправлен в рабочем дереве, ожидает коммита владельцем |
+| R8 | Исправлен по решению Q4=A (20.10.2026): приоритет статики переведён на dist/ — server.cjs (dist/ → app/ → cwd), start.bat и run.ps1 обновлены, генерируемые скрипты в createPortableZipBundle — тоже; всё это **в HEAD** (коммит 0533266). **Частично:** app/index.html всё ещё отслеживается git (git rm -r --cached app/ не выполнен либо потерян при коммите), в .gitignore присутствует только `app/assets/`, отдельной строки `app/` нет. Остаточный риск: dist/ tracked и может устаревать при правках src/ без npm run build — следить за актуальностью dist/ перед коммитом. | Средняя | исправлен в HEAD частично; остаток (снятие app/ с индекса, полная строка app/ в .gitignore) ожидает |
 | R9 | Большой JS-бандл (предупреждение Vite >500 kB: docxtemplater + exceljs + i18next в одном чанке) | Низкая | [код] (статически); влияние на загрузку [ручка] |
 | R10 | Дублирование справочников 29н/342н: списки normative29n342n.ts используются в ContingentView, а в docxEngine правила перечисаны литералами — риск рассинхронизации нормативной логики | Средняя | [код] |
-| R11 | Расхождение правила «ПСО только при предварительном МО»: в сценарии directions ограничение действует (docxEngine.ts:711–716), в instructions ПСО добавляется без проверки типа осмотра (docxEngine.ts:603) | Средняя | [код]; дефект или решение — [вопрос] (Q1) |
+| R11 | Расхождение правила «ПСО только при предварительном МО»: в сценарии directions ограничение действовало (docxEngine.ts:711–716), в instructions ПСО добавлялся без проверки типа осмотра. **Исправлен 20.10.2026 (Q1-правка):** docxEngine.ts:591–592 — allowPSO = examType==='предварительный' && hasProgramValue(psychRaw); правило едино в обоих сценариях. | Средняя | исправлен в HEAD (Q1-правка) |
 | R12 | Серверные API `/api/save-local-files` и `/api/status` реализованы (server.ts/server.cjs), но клиентским кодом не вызываются; запись результатов в файловую систему из браузера отсутствует | Средняя | [код] |
 | R13 | R13 (Средняя; частично [код], частично [ручка]). Уточнено: `node server.ts` исполняется на Node ≥22 (аудит 20.10.2026, Node v22, PORT=3005, /api/status 200 OK) и не исполняется на Node ≤20 (ERR_UNKNOWN_FILE_EXTENSION, проверено Qwen на Node v20.20.2). Сценарий npm start на целевой Windows-машине не проверен — [ручка]. Windows-скрипты и визуальная проверка DOCX в Word/LibreOffice остаются непроверенными. | Средняя | частично [код], частично [ручка] |
 | R14 | Зависимости `@google/genai` и `dotenv` присутствуют в package.json, но не импортируются из `src/` (grep — 0 файлов) — следы AI Studio, мёртвый вес бандла | Низкая | [код] |
 | R15 | TypeScript заявлен как `^7.0.2` — нетипичная версия; совместимость с остальным тулчейном подтверждена только тем, что `tsc --noEmit`/build проходили в прошлых сессиях | Низкая | [код] (факт версии); [ручка] (совместимость) |
-| R16 | В src/App.tsx:683–708 компонентам DirectionsView и MedicalScheduleView передаётся полный неотфильтрованный массив employees={employees}. Сами компоненты DirectionsView.tsx:33–42 и MedicalScheduleView.tsx:37–43 проп activeCompanyId не принимают и внутренней фильтрации по companyId не содержат (0 вхождений companyId в файлах). Следствие: при переключении компании вкладки показывают сотрудников всех организаций, и направления/график могут формироваться по сотрудникам чужой компании с реквизитами активной. Визуально подтверждено не было (аудит статический). | Высокая | [код]; визуальная проверка [ручка] |
-| R17 | server.cjs не реализует эндпоинт /api/portable-bundle-files (он есть только в server.ts:52). На неизвестные пути server.cjs отдаёт index.html с кодом 200, из-за чего fetch в portableManager.ts:311 падает при разборе JSON и ZIP-дистрибутив собирается без файлов приложения. При запуске через server.cjs (реальный Windows-сценарий переносимости) переносимый бандл фактически не содержит самой программы. **Исправлен 20.10.2026:** эндпоинт добавлен в server.cjs (источник файлов — baseDir статики app/ → dist/ → cwd, префикс путей в ответе — всегда 'app/'); проверка — живой curl, три сценария. | Высокая | исправлен в рабочем дереве, ожидает коммита владельцем |
-| R18 | MedicalScheduleView.tsx:977 сравнивает j.post === historyEmp.post без нормализации. При различиях в регистре или пробелах по краям поиск должности в справочнике возвращает undefined, и список факторов прошлого года отображается пустым. В остальном проекте связь emp↔job выполняется через j.post.trim().toLowerCase() === emp.post.trim().toLowerCase() — расхождение стиля уже отмечалось в ARCHITECTURE.md §5. **Исправлен 20.10.2026:** сравнение нормализовано по стандарту проекта. | Средняя | исправлен в рабочем дереве, ожидает коммита владельцем |
+| R16 | В src/App.tsx:683–708 компонентам DirectionsView и MedicalScheduleView передавался полный неотфильтрованный массив employees={employees}. Следствие: при переключении компании вкладки показывают сотрудников всех организаций. **Исправлен 20.10.2026 (D1, Q3=D):** создан src/lib/companyFilter.ts (filterEmployeesByCompany — логика легаси-правила EmployeesView/InstructionsView), App.tsx вычисляет companyEmployees через useMemo и передаёт его в DirectionsView и MedicalScheduleView. | Высокая | исправлен в HEAD (D1); визуальная проверка при переключении компаний остаётся [ручка] (TESTING.md §4.10) |
+| R17 | server.cjs не реализует эндпоинт /api/portable-bundle-files (он есть только в server.ts:52). На неизвестные пути server.cjs отдаёт index.html с кодом 200, из-за чего fetch в portableManager.ts:311 падает при разборе JSON и ZIP-дистрибутив собирается без файлов приложения. При запуске через server.cjs (реальный Windows-сценарий переносимости) переносимый бандл фактически не содержит самой программы. **Исправлен 20.10.2026:** эндпоинт добавлен в server.cjs (источник файлов — baseDir статики dist/ → app/ → cwd после Q4, префикс путей в ответе — всегда 'app/'); проверка — живой curl, три сценария. | Высокая | исправлен в HEAD (server.cjs: /api/portable-bundle-files) |
+| R18 | MedicalScheduleView.tsx:977 сравнивает j.post === historyEmp.post без нормализации. При различиях в регистре или пробелах по краям поиск должности в справочнике возвращает undefined, и список факторов прошлого года отображается пустым. В остальном проекте связь emp↔job выполняется через j.post.trim().toLowerCase() === emp.post.trim().toLowerCase() — расхождение стиля уже отмечалось в ARCHITECTURE.md §5. **Исправлен 20.10.2026:** сравнение нормализовано по стандарту проекта. | Средняя | исправлен в HEAD (MedicalScheduleView.tsx: нормализация post) |
 | R19 | Конфликт зависимостей vite/esbuild при npm ci: установка проходит только с флагом --legacy-peer-deps. Воспроизводимость сборки в чистом окружении зависит от этого флага. package.json не менялся. Требуется решение: зафиксировать флаг в документации/CI или обновить версии зависимостей — открытый вопрос. | Низкая/Средняя | [код] |
 | R20 | При baseDir=cwd (нет ни app/, ни dist/) server.cjs рекурсивно обходит корень проекта, включая node_modules, и падает с OOM при сериализации ответа /api/portable-bundle-files. Поведение унаследовано от server.ts (та же логика walk без исключений). В целевом Windows-бандле не воспроизводится, но при запуске server.cjs в корне с node_modules и без сборки — воспроизводится. Возможное решение: исключить node_modules из обхода в server.cjs и/или возвращать понятную ошибку. Открытый вопрос. | Средняя | [код] |
+| R21 | В portableManager.ts функция serializeTemplatesGuard и приведение as unknown as SerializedTemplateItem[] вводили в заблуждение типы: по типу bundle.templates — SerializedTemplateItem[], по факту после importProjectFromJson — TemplateItem[]. **Исправлен 20.10.2026:** введён ImportedProjectBundle (templates: TemplateItem[]), изменена сигнатура importProjectFromJson, serializeTemplatesGuard удалён, as unknown as TemplateItem убран из HistoryAndBackupView. Формат JSON на диске и версия '1.2.0' не менялись. | Низкая | исправлен в рабочем дереве (staged), ожидает коммита владельцем |
+| R22 | exportProjectToJson принимает 9 позиционных аргументов; вызов в createPortableZipBundle читается плохо (…, [], undefined, undefined, soutWorkplaces, templates). Технический долг, не дефект. | Низкая | [код]; запланировано в §4 |
 
 ---
 
@@ -96,14 +106,16 @@
 - **Q4 (R8):** Что делать с папкой `app/`: удалить из репозитория, пересобрать или оставить как есть? — **Закрыт (20.10.2026).** Решение: A — удалить app/ из git, добавить в .gitignore, поправить start.bat на dist/. Реализация — в §4 (Q4-правка).
 - **Q5 (R1):** Нужен ли отдельный линтер (ESLint) и минимальные автотесты (например, Vitest на парсер дат и docxEngine), или пока достаточно `tsc --noEmit` и ручных проверок? — **Закрыт (20.10.2026).** Решение: D — Vitest после закрытия текущих R и Q. Реализация — в §4.
 
+Примечание: по состоянию на 20.10.2026 после серии исправлений открытых вопросов к владельцу нет. Новые вопросы фиксируются по мере необходимости.
+
 ---
 
 ## 7. Следующие шаги
 
-1. Утверждение владельцем обновлённых документов.
-2. Решения по Q1, Q3, Q4 (блокируют исправление R16 и правку app/).
-3. Исправления R16–R18 отдельными задачами.
-4. Повторная проверка по TESTING.md.
+1. Утверждение синхронизированных документов.
+2. Коммит R21 владельцем.
+3. Повторный аудит Google AI Studio по чек-листу AI_HANDOFF.md §5.
+4. Исправления по результатам аудита (R6, R19, R20, R22, magic string, Q1-расширение, Q5-Vitest).
 
 ---
 

@@ -98,7 +98,16 @@ export function exportProjectToJson(
   return JSON.stringify(bundle, null, 2);
 }
 
-export function importProjectFromJson(jsonStr: string): ProjectBundle {
+/**
+ * R21: тип результата импорта. Отличается от ProjectBundle («что лежит на диске»,
+ * где templates — SerializedTemplateItem[]) тем, что после importProjectFromJson
+ * шаблоны уже десериализованы: templates?: TemplateItem[] (fileBuffer: ArrayBuffer).
+ */
+export type ImportedProjectBundle = Omit<ProjectBundle, 'templates'> & {
+  templates?: TemplateItem[];
+};
+
+export function importProjectFromJson(jsonStr: string): ImportedProjectBundle {
   const parsed = JSON.parse(jsonStr);
   if (!parsed.companySettings || !Array.isArray(parsed.employees) || !Array.isArray(parsed.jobDirectory)) {
     throw new Error('Некорректный формат файла проекта.');
@@ -106,22 +115,13 @@ export function importProjectFromJson(jsonStr: string): ProjectBundle {
   const bundle = parsed as ProjectBundle;
   // Обратная совместимость: бэкапы '1.1.0' без новых полей читаются как есть
   // (soutWorkplaces/templates остаются undefined). Блокировки по версии нет.
-  if (bundle.templates) {
-    bundle.templates = serializeTemplatesGuard(bundle.templates);
-  }
-  return bundle;
-}
-
-/**
- * Защита импорта: если в файле templates оказались объекты с fileBuffer вместо
- * fileBufferBase64 (например, бэкап, собранный другой версией), приводим к
- * каноническому формату десериализации. Обычный путь — decode base64 -> ArrayBuffer.
- */
-function serializeTemplatesGuard(templates: SerializedTemplateItem[]): SerializedTemplateItem[] {
-  // На выходе из importProjectFromJson храним templates уже десериализованными
-  // (fileBuffer: ArrayBuffer). Тип совпадает с TemplateItem структурно, поэтому
-  // приведение безопасно.
-  return deserializeTemplates(templates) as unknown as SerializedTemplateItem[];
+  // R21: templates десериализуются (fileBufferBase64 -> fileBuffer: ArrayBuffer)
+  // и возвращаются в честном типе TemplateItem[].
+  const imported: ImportedProjectBundle = {
+    ...bundle,
+    templates: deserializeTemplates(bundle.templates),
+  };
+  return imported;
 }
 
 export async function createPortableZipBundle({

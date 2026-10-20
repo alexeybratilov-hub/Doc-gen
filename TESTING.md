@@ -72,11 +72,11 @@
 
 ### 4.4 Инструктажи (InstructionsView)
 - **Шаги:** выбрать сотрудников, отметить `needGeneration`, запустить генерацию, скачать DOCX.
-- **Ожидание:** изоляция по легаси-правилу (InstructionsView.tsx:93–102); в сгенерированных DOCX — корректные ФИО/должность/даты DD.MM.YYYY. После Q1-правки: ПСО генерируется только при examType='предварительный' (как в directions). До правки — текущее расхождение (R11), зафиксировать как известное.
+- **Ожидание:** изоляция по легаси-правилу (InstructionsView.tsx:93–102); в сгенерированных DOCX — корректные ФИО/должность/даты DD.MM.YYYY. ПСО генерируется только при examType='предварительный' (Q1-правка, 20.10.2026, в HEAD; как в directions). Историческое расхождение R11 закрыто.
 
 ### 4.5 Направления МО/ПСО (DirectionsView)
 - **Шаги:** сформировать направление на медосмотр для сотрудника с вредными факторами; отдельно — на ПСО.
-- **Ожидание:** в directions ограничение «ПСО только при предварительном МО» действует (docxEngine.ts:711–716) — проверить оба случая (R11). После Q1-правки правило ПСО едино для directions и instructions. **R7:** DirectionsView пропс `activeCompanyId` не получает; работает со списком переданных сотрудников — зафиксировать, смешиваются ли компании в выборке.
+- **Ожидание:** в directions ограничение «ПСО только при предварительном МО» действует (docxEngine.ts:711–716) — проверить оба случая. Правило ПСО едино для directions и instructions (Q1-правка, 20.10.2026, в HEAD). **R16/D1 (исправлен, в HEAD):** DirectionsView получает отфильтрованный companyEmployees из App.tsx; пропс `activeCompanyId` компонент по-прежнему не принимает — фильтрация на уровне пропса employees. Проверить, что сотрудники чужой компании не попадают в выборку.
 
 ### 4.6 График медосмотров (MedicalScheduleView)
 - **Шаги:** выбрать `examTypeMode`, проверить eligibility по классу СОУТ/факторам должности, запланировать, экспортировать XLSX.
@@ -96,11 +96,11 @@
 
 ### 4.10 Изоляция companyId (сквозной)
 - **Шаги:** переключить Катания ↔ СибТрансСервис последительно во всех вкладках; вернуться на Катанию.
-- **Ожидание:** После D1 (Q3=D): единая функция-фильтр по companyId в lib/, применяется в App.tsx для DirectionsView и MedicalScheduleView. ContingentView работает с jobDirectory — отдельное правило, см. R7. Ожидание: утечки сотрудников между организациями нет. До D1 — зафиксировать фактическое смешение (R7/R16) как известное состояние. Данные Катании после возврата complete — на месте.
+- **Ожидание:** После D1 (20.10.2026, в HEAD) App.tsx передаёт в DirectionsView и MedicalScheduleView отфильтрованный `companyEmployees` (filterEmployeesByCompany, src/lib/companyFilter.ts — логика легаси-правила). ContingentView работает с jobDirectory — отдельное правило (R7). Проверка: при переключении на пустую компанию вкладки показывают пустой список сотрудников; направления/график формируются только по сотрудникам активной компании. Записи без companyId принадлежат первой компании (фолбэк 'comp-catania'). Данные Катании после возврата complete — на месте.
 
 ### 4.11 JSON-бэкап (HistoryAndBackupView)
 - **Шаги:** экспорт JSON → очистить localStorage → импорт.
-- **Ожидание:** восстанавливаются employees, jobDirectory, history, companies, activeCompanyId (состав ProjectBundle, portableManager.ts:6–16). После Q2-правки: soutWorkplaces и templates входят в ProjectBundle. До правки — текущее поведение (R4/R5): soutWorkplaces и templates в бэкап не входят — после импорта карты СОУТ и загруженные шаблоны отсутствуют, зафиксировать объём потери.
+- **Ожидание:** ProjectBundle версии **'1.2.0'** (Q2-правка, 20.10.2026, в HEAD) включает soutWorkplaces и templates (fileBuffer сериализуется как base64-строка fileBufferBase64). Восстанавливаются employees, jobDirectory, history, companies, activeCompanyId, soutWorkplaces, templates; при импорте они возвращаются в состояние App (сеттеры setSoutWorkplaces/setTemplates в App.tsx). Обратная совместимость с '1.1.0' сохранена: старые бэкапы импортируются без ошибок, новые поля undefined. R6 (пустые history/companies в ZIP-бэкапе) остаётся открытым. R21: тип возврата importProjectFromJson — ImportedProjectBundle (templates: TemplateItem[]), ожидает коммита.
 
 ### 4.12 ZIP-дистрибутив (portableManager)
 - **Шаги:** собрать бандл из HistoryAndBackupView в dev-режиме и при запущенном прод-сервере (`server.cjs`); распаковать.
@@ -119,6 +119,10 @@
 ### 4.15 Проверка R19 / R20
 - **R19:** npm ci без флага --legacy-peer-deps в чистом окружении должен воспроизвести конфликт vite/esbuild. Зафиксировать поведение.
 - **R20:** запустить server.cjs в корне с node_modules и без app//dist/, curl на /api/portable-bundle-files — ожидается OOM или зависание. Зафиксировать.
+
+### 4.16 Проверка R21 / R22
+- **R21 (типы импорта):** импорт JSON-бэкапа с непустыми templates — fileBuffer восстанавливается как ArrayBuffer байт-в-байт (проверить генерацию DOCX по восстановленному шаблону). Проверка через UI: загрузить шаблон, экспортировать JSON, очистить localStorage, импортировать — шаблон в списке и работает. Статически: в HistoryAndBackupView нет `as unknown as TemplateItem`, importProjectFromJson возвращает ImportedProjectBundle. Правка в рабочем дереве (staged), ожидает коммита.
+- **R22 (сигнатура exportProjectToJson):** тип в UI не проверяется; при следующей правке portableManager.ts — верифицировать сигнатуру (план: перевод на объект параметров, TASK_STATUS.md §4).
 
 ---
 
