@@ -18,6 +18,7 @@ import {
   DEFAULT_TEMPLATES,
 } from './lib/defaultData';
 import { DEFAULT_HOLIDAYS_RU } from './lib/holidays';
+import { filterEmployeesByCompany } from './lib/companyFilter';
 import { InstructionsView } from './components/InstructionsView';
 import { DirectionsView } from './components/DirectionsView';
 import { MedicalScheduleView } from './components/MedicalScheduleView';
@@ -266,6 +267,14 @@ export default function App() {
       }
     );
   }, [companies, activeCompanyId]);
+
+  // D1 (R16, Q3=D): единая фильтрация сотрудников по активной компании
+  // для вкладок «Направления» и «График медосмотров». Правило — как в
+  // EmployeesView/InstructionsView (см. lib/companyFilter.ts).
+  const companyEmployees = useMemo(
+    () => filterEmployeesByCompany(employees, activeCompanyId, companies),
+    [employees, activeCompanyId, companies]
+  );
 
   const handleSelectCompany = (id: string) => {
     setActiveCompanyId(id);
@@ -681,7 +690,7 @@ export default function App() {
 
         {activeTab === 'directions' && (
           <DirectionsView
-            employees={employees}
+            employees={companyEmployees}
             jobDirectory={jobDirectory}
             companySettings={companySettings}
             templates={templates}
@@ -696,7 +705,7 @@ export default function App() {
 
         {activeTab === 'schedule' && (
           <MedicalScheduleView
-            employees={employees}
+            employees={companyEmployees}
             jobDirectory={jobDirectory}
             companySettings={companySettings}
             onUpdateEmployees={setEmployees}
@@ -776,7 +785,8 @@ export default function App() {
             jobDirectory={jobDirectory}
             holidaysList={holidaysList}
             templates={templates}
-            onImportProject={(settings, emp, jobs, hols, hist, comps, activeId) => {
+            soutWorkplaces={soutWorkplaces}
+            onImportProject={(settings, emp, jobs, hols, hist, comps, activeId, restoredSout, restoredTemplates) => {
               setCompanySettings(settings);
               setEmployees(emp);
               setJobDirectory(jobs);
@@ -784,6 +794,10 @@ export default function App() {
               setHistory(hist);
               if (comps && Array.isArray(comps)) setCompanies(comps);
               if (activeId) setActiveCompanyId(activeId);
+              // Q2-правка: восстановление реестра СОУТ и шаблонов из бэкапа.
+              // Старые бэкапы '1.1.0' без этих полей (undefined) состояние не меняют.
+              if (restoredSout && Array.isArray(restoredSout)) setSoutWorkplaces(restoredSout);
+              if (restoredTemplates && Array.isArray(restoredTemplates)) setTemplates(restoredTemplates);
             }}
             onClearHistory={() => setHistory([])}
           />

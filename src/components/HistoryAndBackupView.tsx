@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { CompanyItem, CompanySettings, Employee, HistoryRecord, JobDirectoryItem, TemplateItem } from '../lib/types';
+import { CompanyItem, CompanySettings, Employee, HistoryRecord, JobDirectoryItem, SoutWorkplace, TemplateItem } from '../lib/types';
 import { createPortableZipBundle, exportProjectToJson, importProjectFromJson } from '../lib/portableManager';
 import { History, Download, Upload, Archive, HardDrive, FileJson, CheckCircle2, Clock, Calendar, Monitor } from 'lucide-react';
 
@@ -12,6 +12,7 @@ interface HistoryAndBackupViewProps {
   jobDirectory: JobDirectoryItem[];
   holidaysList: string[];
   templates: TemplateItem[];
+  soutWorkplaces?: SoutWorkplace[];
   onImportProject: (
     settings: CompanySettings,
     employees: Employee[],
@@ -19,7 +20,9 @@ interface HistoryAndBackupViewProps {
     holidays: string[],
     history: HistoryRecord[],
     companies?: CompanyItem[],
-    activeCompanyId?: string
+    activeCompanyId?: string,
+    soutWorkplaces?: SoutWorkplace[],
+    templates?: TemplateItem[]
   ) => void;
   onClearHistory: () => void;
 }
@@ -33,6 +36,7 @@ export const HistoryAndBackupView: React.FC<HistoryAndBackupViewProps> = ({
   jobDirectory,
   holidaysList,
   templates,
+  soutWorkplaces,
   onImportProject,
   onClearHistory,
 }) => {
@@ -47,7 +51,9 @@ export const HistoryAndBackupView: React.FC<HistoryAndBackupViewProps> = ({
       holidaysList,
       history,
       companies,
-      activeCompanyId
+      activeCompanyId,
+      soutWorkplaces,
+      templates
     );
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -76,7 +82,10 @@ export const HistoryAndBackupView: React.FC<HistoryAndBackupViewProps> = ({
           bundle.holidays || holidaysList,
           bundle.history || [],
           bundle.companies,
-          bundle.activeCompanyId
+          bundle.activeCompanyId,
+          bundle.soutWorkplaces,
+          // importProjectFromJson уже десериализовал fileBufferBase64 -> fileBuffer (ArrayBuffer)
+          bundle.templates as unknown as TemplateItem[] | undefined
         );
         alert('Резервная копия проекта успешно восстановлена!');
       } catch (err: any) {

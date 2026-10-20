@@ -974,7 +974,7 @@ export const MedicalScheduleView: React.FC<MedicalScheduleViewProps> = ({
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="font-bold text-slate-800">Все установленные факторы должности:</div>
                 <div className="flex flex-wrap gap-2">
-                  {(historyEmp.factors29n || jobDirectory.find((j) => j.post === historyEmp.post)?.factors || '')
+                  {(historyEmp.factors29n || jobDirectory.find((j) => (j.post || '').trim().toLowerCase() === (historyEmp.post || '').trim().toLowerCase())?.factors || '')
                     .split(';')
                     .map((s) => s.trim())
                     .filter(Boolean)
