@@ -1,7 +1,59 @@
 import JSZip from 'jszip';
-import { CompanyItem, CompanySettings, Employee, HistoryRecord, JobDirectoryItem, TemplateItem } from './types';
+import { CompanyItem, CompanySettings, Employee, HistoryRecord, JobDirectoryItem, SoutWorkplace, TemplateItem } from './types';
 import { generateBuiltInTemplateDocx } from './docxEngine';
 import { createExportWorkbook } from './excelParser';
+
+/**
+ * Поле fileBuffer?: ArrayBuffer в JSON не сериализуется (превращается в {}),
+ * поэтому при экспорте оно кодируется в base64 (fileBufferBase64?), а при
+ * импорте декодируется обратно в ArrayBuffer. Остальные поля TemplateItem
+ * (включая name и dateConfig — plain object) сохраняются как есть.
+ */
+export type SerializedTemplateItem = Omit<TemplateItem, 'fileBuffer'> & {
+  fileBufferBase64?: string;
+};
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary); // браузерный API (используется и в createPortableZipBundle ниже)
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const binaryStr = atob(b64);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+export function serializeTemplates(templates: TemplateItem[]): SerializedTemplateItem[] {
+  return templates.map((tpl) => {
+    const { fileBuffer, ...rest } = tpl;
+    const serialized: SerializedTemplateItem = { ...rest };
+    if (fileBuffer) {
+      serialized.fileBufferBase64 = arrayBufferToBase64(fileBuffer);
+    }
+    return serialized;
+  });
+}
+
+export function deserializeTemplates(templates?: SerializedTemplateItem[]): TemplateItem[] | undefined {
+  if (!templates) return undefined;
+  return templates.map((tpl) => {
+    const { fileBufferBase64, ...rest } = tpl;
+    const item: TemplateItem = { ...rest };
+    if (typeof fileBufferBase64 === 'string' && fileBufferBase64.length > 0) {
+      item.fileBuffer = base64ToArrayBuffer(fileBufferBase64);
+    }
+    return item;
+  });
+}
 
 export interface ProjectBundle {
   version: string;
@@ -13,6 +65,10 @@ export interface ProjectBundle {
   jobDirectory: JobDirectoryItem[];
   holidays: string[];
   history: HistoryRecord[];
+  /** Q2-правка (R4): карты СОУТ. Опционально для обратной совместимости бэкапов '1.1.0'. */
+  soutWorkplaces?: SoutWorkplace[];
+  /** Q2-правка (R5): пользовательские шаблоны. Опционально для обратной совместимости бэкапов '1.1.0'. */
+  templates?: SerializedTemplateItem[];
 }
 
 export function exportProjectToJson(
@@ -22,10 +78,12 @@ export function exportProjectToJson(
   holidays: string[],
   history: HistoryRecord[],
   companies?: CompanyItem[],
-  activeCompanyId?: string
+  activeCompanyId?: string,
+  soutWorkplaces?: SoutWorkplace[],
+  templates?: TemplateItem[]
 ): string {
   const bundle: ProjectBundle = {
-    version: '1.1.0',
+    version: '1.2.0',
     exportDate: new Date().toISOString(),
     companySettings: settings,
     companies,
@@ -34,16 +92,36 @@ export function exportProjectToJson(
     jobDirectory: jobs,
     holidays,
     history,
+    soutWorkplaces,
+    templates: templates ? serializeTemplates(templates) : undefined,
   };
   return JSON.stringify(bundle, null, 2);
 }
 
-export function importProjectFromJson(jsonStr: string): ProjectBundle {
+/**
+ * R21: тип результата импорта. Отличается от ProjectBundle («что лежит на диске»,
+ * где templates — SerializedTemplateItem[]) тем, что после importProjectFromJson
+ * шаблоны уже десериализованы: templates?: TemplateItem[] (fileBuffer: ArrayBuffer).
+ */
+export type ImportedProjectBundle = Omit<ProjectBundle, 'templates'> & {
+  templates?: TemplateItem[];
+};
+
+export function importProjectFromJson(jsonStr: string): ImportedProjectBundle {
   const parsed = JSON.parse(jsonStr);
   if (!parsed.companySettings || !Array.isArray(parsed.employees) || !Array.isArray(parsed.jobDirectory)) {
     throw new Error('Некорректный формат файла проекта.');
   }
-  return parsed as ProjectBundle;
+  const bundle = parsed as ProjectBundle;
+  // Обратная совместимость: бэкапы '1.1.0' без новых полей читаются как есть
+  // (soutWorkplaces/templates остаются undefined). Блокировки по версии нет.
+  // R21: templates десериализуются (fileBufferBase64 -> fileBuffer: ArrayBuffer)
+  // и возвращаются в честном типе TemplateItem[].
+  const imported: ImportedProjectBundle = {
+    ...bundle,
+    templates: deserializeTemplates(bundle.templates),
+  };
+  return imported;
 }
 
 export async function createPortableZipBundle({
@@ -52,12 +130,14 @@ export async function createPortableZipBundle({
   jobDirectory,
   holidays,
   templates,
+  soutWorkplaces,
 }: {
   companySettings: CompanySettings;
   employees: Employee[];
   jobDirectory: JobDirectoryItem[];
   holidays: string[];
   templates: TemplateItem[];
+  soutWorkplaces?: SoutWorkplace[];
 }): Promise<Blob> {
   const zip = new JSZip();
 
@@ -76,12 +156,12 @@ echo.
 
 where msedge.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    if exist "%~dp0app\\index.html" (
-        start "" msedge.exe --app="file:///%~dp0app/index.html"
-        exit /b 0
-    )
     if exist "%~dp0dist\\index.html" (
         start "" msedge.exe --app="file:///%~dp0dist/index.html"
+        exit /b 0
+    )
+    if exist "%~dp0app\\index.html" (
+        start "" msedge.exe --app="file:///%~dp0app/index.html"
         exit /b 0
     )
     if exist "%~dp0index.html" (
@@ -90,12 +170,12 @@ if %errorlevel% equ 0 (
     )
 )
 
-if exist "%~dp0app\\index.html" (
-    start "" "%~dp0app\\index.html"
-    exit /b 0
-)
 if exist "%~dp0dist\\index.html" (
     start "" "%~dp0dist\\index.html"
+    exit /b 0
+)
+if exist "%~dp0app\\index.html" (
+    start "" "%~dp0app\\index.html"
     exit /b 0
 )
 if exist "%~dp0index.html" (
@@ -120,9 +200,10 @@ powershell.exe -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTi
 # Не требует установки Node.js, Python или каких-либо сторонних библиотек
 
 $port = 3000
-$rootPath = Join-Path $PSScriptRoot "app"
+# Q4=A: приоритет статики — dist/ первый, app/ fallback для старых бандлов
+$rootPath = Join-Path $PSScriptRoot "dist"
 if (-not (Test-Path $rootPath)) {
-    $rootPath = Join-Path $PSScriptRoot "dist"
+    $rootPath = Join-Path $PSScriptRoot "app"
 }
 if (-not (Test-Path $rootPath)) {
     $rootPath = $PSScriptRoot
@@ -219,9 +300,10 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-let baseDir = path.join(__dirname, 'app');
+// Q4=A: приоритет статики — dist/ первый, app/ fallback (R8), иначе cwd.
+let baseDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(baseDir)) {
-  baseDir = path.join(__dirname, 'dist');
+  baseDir = path.join(__dirname, 'app');
 }
 if (!fs.existsSync(baseDir)) {
   baseDir = __dirname;
@@ -342,7 +424,20 @@ Python, сред разработки или Microsoft Office!
   zip.file('data/tables/База_Сотрудников_и_Должностей.xlsx', excelBytes);
 
   // 9. Файл конфигурации и резервной копии
-  const projectJson = exportProjectToJson(companySettings, employees, jobDirectory, holidays, []);
+  // Q2-правка (R4/R5): soutWorkplaces и templates включаются в project_backup.json.
+  // ВАЖНО: R6 (пустые history/companies в ZIP-бэкапе) в этой правке НЕ затрагивается —
+  // как и раньше, передаются [] для history и companies/activeCompanyId не передаются.
+  const projectJson = exportProjectToJson(
+    companySettings,
+    employees,
+    jobDirectory,
+    holidays,
+    [],
+    undefined,
+    undefined,
+    soutWorkplaces,
+    templates
+  );
   zip.file('data/project_backup.json', projectJson);
 
   return await zip.generateAsync({ type: 'blob' });

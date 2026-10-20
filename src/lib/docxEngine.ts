@@ -588,7 +588,8 @@ export async function generateDocuments({
       const allowWorker = statusLower === 'рабочий' || statusLower === 'рабочие';
       const allowOffice = statusLower === 'офис';
       const allowMO = hasProgramValue(harmRaw);
-      const allowPSO = hasProgramValue(psychRaw);
+      // R11 (Q1-правка): ПСО только при предварительном медосмотре — правило как в directions (см. isPreliminary ниже).
+      const allowPSO = companySettings?.examType === 'предварительный' && hasProgramValue(psychRaw);
 
       // Список шаблонов для генерации
       const targetTemplates: { name: string; folder: 'инструктажи' | 'Направления' }[] = [

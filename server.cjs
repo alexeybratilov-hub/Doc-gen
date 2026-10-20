@@ -8,9 +8,11 @@ const path = require('path');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-let baseDir = path.join(__dirname, 'app');
+// Q4=A: приоритет статики — dist/ первый, app/ fallback для совместимости
+// со старыми ZIP-бандлами (R8), иначе cwd.
+let baseDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(baseDir)) {
-  baseDir = path.join(__dirname, 'dist');
+  baseDir = path.join(__dirname, 'app');
 }
 if (!fs.existsSync(baseDir)) {
   baseDir = __dirname;
@@ -32,8 +34,58 @@ const MIME_TYPES = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
+// Рекурсивный сбор файлов папки dir в формате { path, base64 } (контракт как в server.ts).
+// dir — источник файлов (baseDir статики: app/ → dist/ → cwd), prefix — префикс путей
+// в ответе (всегда 'app', независимо от того, откуда читаем): path = prefix + '/' + relPath.
+function collectBundleFiles(dir, prefix, result) {
+  if (!fs.existsSync(dir)) return;
+  const walk = (currentDir, relBase) => {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relPath = relBase ? relBase + '/' + entry.name : entry.name;
+      if (entry.isDirectory()) {
+        walk(fullPath, relPath);
+      } else {
+        try {
+          const buf = fs.readFileSync(fullPath);
+          result.push({
+            path: prefix + '/' + relPath,
+            base64: buf.toString('base64'),
+          });
+        } catch (e) {
+          // пропускаем файлы, которые не удалось прочитать, сервер падать не должен
+        }
+      }
+    }
+  };
+  walk(dir, '');
+}
+
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
+
+  // API отдачи скомпилированных файлов приложения для переносимого ZIP
+  // (обрабатывается ДО fallback на index.html; формат ответа совпадает с server.ts)
+  if (reqPath === '/api/portable-bundle-files') {
+    try {
+      const result = [];
+      collectBundleFiles(baseDir, 'app', result);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ success: true, files: result }));
+    } catch (err) {
+      res.writeHead(500, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   }

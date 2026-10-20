@@ -12,12 +12,12 @@ echo.
 
 where msedge.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    if exist "%~dp0app\index.html" (
-        start "" msedge.exe --app="file:///%~dp0app\index.html"
-        exit /b 0
-    )
     if exist "%~dp0dist\index.html" (
         start "" msedge.exe --app="file:///%~dp0dist\index.html"
+        exit /b 0
+    )
+    if exist "%~dp0app\index.html" (
+        start "" msedge.exe --app="file:///%~dp0app\index.html"
         exit /b 0
     )
     if exist "%~dp0index.html" (
@@ -26,12 +26,12 @@ if %errorlevel% equ 0 (
     )
 )
 
-if exist "%~dp0app\index.html" (
-    start "" "%~dp0app\index.html"
-    exit /b 0
-)
 if exist "%~dp0dist\index.html" (
     start "" "%~dp0dist\index.html"
+    exit /b 0
+)
+if exist "%~dp0app\index.html" (
+    start "" "%~dp0app\index.html"
     exit /b 0
 )
 if exist "%~dp0index.html" (
