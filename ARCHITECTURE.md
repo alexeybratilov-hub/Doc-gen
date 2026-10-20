@@ -151,14 +151,14 @@
 - **Назначение companyId при импорте — в UI-слое, не в парсере. Проверенные пути штамповки:** `ExcelTransferView:73–74` (employees и jobs → `activeCompanyId`), `EmployeesView:188` (batch-paste) и `:222` (форма «добавить сотрудника»), мастер компании (`CompanySetupWizard` создаёт записи с id новой компании; привязка карт к должностям в `App.handleCompanySetupComplete:350–357`). **Не подтверждено:** наличие гарантированной штамповки в иных/будущих путях создания записей (поле в типе опционально `?: string`, принудительной проверки нет). **Риск:** запись без companyId по легаси-правилу фильтрации считается принадлежащей первой компании → утечка между юрлицами.
 - **Экспорт XLSX**: `createExportWorkbook(employees, jobs)` (базы), `createMedicalScheduleWorkbook` (график), `createBlankTemplateWorkbook` (пустой бланк). Всё — blob → download в браузере.
 - **JSON-бэкап** (`portableManager`): `ProjectBundle{version:'1.1.0', exportDate, companySettings, companies?, activeCompanyId?, employees, jobDirectory, holidays, history}` — **шаблоны и soutWorkplaces в бэкап НЕ включены** (подтверждено типом `ProjectBundle`, portableManager.ts:6–16). В ZIP-бандл (`createPortableZipBundle`) бэкап вложен как `data/project_backup.json` и формируется вызовом с пустыми массивами history/companies (portableManager.ts:345) — состав ещё неполнее пользовательского экспорта из HistoryAndBackupView (там передаются history, companies, activeCompanyId). `importProjectFromJson` проверяет только presence companySettings/employees/jobDirectory.
-- **ZIP-дистрибутив** (`createPortableZipBundle`): start.bat/run.ps1/stop.bat (тексты генерируются в коде), `ИНСТРУКЦИЯ_ПО_ЗАПУСКУ.txt`, шаблоны в `data/templates/`, эталонный XLSX в `data/tables/`, `data/project_backup.json`, плюс attempt-fetch `/api/portable-bundle-files` для вложения собранного приложения. ⚠️ Уточнение по коду: эндпоинт собирает файлы из **`dist/`** (server.ts:52–54) и кладёт их в ZIP под путями без префикса папки; чтобы сгенерированный start.bat нашёл `app\index.html`, эндпоинт должен вызываться из прод-сервера (`NODE_ENV=production`), где база статики — `dist/`. Без сервера блок молча пропускается — ZIP выйдет без самой программы.
+- **ZIP-дистрибутив** (`createPortableZipBundle`): start.bat/run.ps1/stop.bat (тексты генерируются в коде), `ИНСТРУКЦИЯ_ПО_ЗАПУСКУ.txt`, шаблоны в `data/templates/`, эталонный XLSX в `data/tables/`, `data/project_backup.json`, плюс attempt-fetch `/api/portable-bundle-files` для вложения собранного приложения. ⚠️ Уточнение по коду: эндпоинт собирает файлы из **`dist/`** (server.ts:52–54) и кладёт их в ZIP под путями без префикса папки; чтобы сгенерированный start.bat нашёл `app\index.html`, эндпоинт должен вызываться из прод-сервера (`NODE_ENV=production`), где база статики — `dist/`. Без сервера блок молча пропускается — ZIP выйдет без самой программы. ⚠️ Уточнено аудитом 20.10.2026: эндпоинт /api/portable-bundle-files реализован только в server.ts:52. В автономном server.cjs его нет: на неизвестные пути server.cjs возвращает index.html, поэтому fetch в portableManager.ts:311 падает при разборе JSON, а ZIP собирается без файлов приложения. В реальном Windows-сценарии (server.cjs) переносимый бандл неполный — это дефект R17 (TASK_STATUS.md).
 
 ---
 
 ## 8. Локальный сервер и переносимость
 
 - **Dev:** `npm run dev` = `tsx server.ts` → Express + Vite middleware (SSR-режим), порт 3000 (`PORT` env). `NODE_ENV=production` в server.ts → раздача `dist/` + SPA-fallback. Скрипты package.json: `dev` (tsx server.ts), `start` (node server.ts — требует tsx-loader, фактическая работоспособность не проверялась), `build` (vite build), `preview` (vite preview), `clean` (rm -rf dist server.js), `lint` (= `tsc --noEmit`, стороннего линтера нет).
-- **server.cjs:** чистый Node http, MIME-таблица, база выбора папки: `app/`, если существует, иначе `dist/`, иначе cwd (server.cjs:11–16) — отсюда приоритет старой сборки `app/`; слушает 127.0.0.1:3000. Не требует node_modules.
+- **server.cjs:** чистый Node http, MIME-таблица, база выбора папки: `app/`, если существует, иначе `dist/`, иначе cwd (server.cjs:11–16) — отсюда приоритет старой сборки `app/`; слушает 127.0.0.1:3000. Не требует node_modules. server.cjs не реализует /api/portable-bundle-files (в отличие от server.ts) — см. §7 и R17 в TASK_STATUS.md.
 - **start.bat (корневой и генерируемый в ZIP):** приоритет — `msedge.exe --app=file:///.../app/index.html` (app-режим без сервера); далее обычный открытие файла; в самом конце — `run.ps1`.
 - **run.ps1:** ищет `runtime\node.exe` или системный node → `node server.cjs`; иначе встроенный PowerShell HttpListener (читается далее по файлу).
 - **Service Worker** (`public/sw.js`): cache-first для GET, кэш `docgen-cache-v1`, offline-fallback на `/`. Работает только при http(s)-источнике; при открытии через `file://` (сценарий start.bat) SW не регистрируется.
@@ -220,6 +220,8 @@
 
 - `PROJECT_CONTEXT.md` — ✅ паспорт проекта (читать первым).
 - `README_PORTABLE.md` — ✅ инструкция запуска (часть утверждений о записи в ФС не подтверждена кодом, см. §1).
-- `TASK_STATUS.md` — ❌ запланирован (не создан).
-- `TESTING.md` — ❌ запланирован (не создан).
-- `AI_HANDOFF.md` — ❌ запланирован (не создан).
+- `TASK_STATUS.md` — ✅ создан.
+- `TESTING.md` — ✅ создан.
+- `AI_HANDOFF.md` — ✅ создан.
+
+Актуальный HEAD и состояние рабочего дерева — см. TASK_STATUS.md §1.
